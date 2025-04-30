@@ -17,12 +17,15 @@ body {
 .container {
     width: 100%;
     max-width: 1200px;
-    margin: 2rem;
+    margin: 2rem auto;
     padding: 2rem;
     background: rgba(0, 0, 0, 0.4);
     border-radius: 20px;
     backdrop-filter: blur(10px);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 header {
@@ -51,6 +54,20 @@ header p {
     gap: 2rem;
     justify-content: center;
     margin-bottom: 3rem;
+}
+
+.login-container {
+    max-width: 400px;
+}
+
+/* Centraliza todos os containers exceto o da página de login */
+.register-container,
+.dashboard-container {
+    max-width: 400px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 .text-container {
@@ -171,6 +188,9 @@ header p {
     gap: 2rem;
     max-width: 1400px;
     margin: 0 auto;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
 }
 
 @media (max-width: 768px) {
@@ -236,7 +256,11 @@ header p {
     backdrop-filter: blur(10px);
     flex: 1;
     min-height: 400px;
-    align-self: flex-start;
+    align-self: center;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 .loading {
@@ -258,7 +282,8 @@ header p {
     font-size: 1.1rem;
     line-height: 1.6;
     white-space: pre-wrap;
-    text-align: left;
+    text-align: center;
+    width: 100%;
 }
 
 footer {
@@ -271,7 +296,16 @@ footer {
 /* Estilos específicos para a página de login */
 .login-container {
     max-width: 400px;
+}
+
+/* Centraliza todos os containers exceto o da página de login */
+.register-container,
+.dashboard-container {
+    max-width: 400px;
     margin: 0 auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 .login-links {
