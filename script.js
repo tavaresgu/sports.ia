@@ -94,7 +94,11 @@ function register() {
         return;
     }
 
-    // Aqui você pode adicionar a lógica de criação de conta
-    // Por enquanto, vamos apenas redirecionar para a página de login
-    window.location.href = 'index.html';
+    // Mostrar mensagem de sucesso
+    showNotification('Conta criada com sucesso! Redirecionando...', 'success');
+    
+    // Redirecionar após 3 segundos
+    setTimeout(() => {
+        window.location.href = 'index.html';
+    }, 3000);
 }
