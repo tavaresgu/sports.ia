@@ -35,30 +35,130 @@
             </div>
 
             <script>
-                const API_KEY = 'sk-4f4ffaf02a144970ba706f54a25d52b3'; // Sua chave da API Deepseek
+                const API_KEY = 'b84f128350msha632e7237e86410p17c48cjsn000254858fa9';
+                const API_URL = 'https://api-football-v1.p.rapidapi.com/v3';
+                
+                // Sistema de cache para armazenar resultados
+                const cache = {
+                    teams: new Map(),
+                    odds: new Map(),
+                    lastRequestTime: 0,
+                    requestCount: 0
+                };
+
+                // Função para controlar a taxa de requisições
+                function checkRateLimit() {
+                    const now = Date.now();
+                    const timeWindow = 60000; // 1 minuto em milissegundos
+                    const maxRequests = 10; // Limite máximo de requisições por minuto
+
+                    if (now - cache.lastRequestTime > timeWindow) {
+                        cache.requestCount = 0;
+                        cache.lastRequestTime = now;
+                    }
+
+                    if (cache.requestCount >= maxRequests) {
+                        throw new Error('Limite de requisições atingido. Por favor, aguarde um minuto e tente novamente.');
+                    }
+
+                    cache.requestCount++;
+                    cache.lastRequestTime = now;
+                }
+
+                async function fetchTeamData(teamName) {
+                    try {
+                        // Fetch team data
+                        const teamResponse = await fetch(`${API_URL}/teams?search=${encodeURIComponent(teamName)}`, {
+                            method: 'GET',
+                            headers: {
+                                'x-rapidapi-host': 'api-football-v1.p.rapidapi.com',
+                                'x-rapidapi-key': API_KEY
+                            }
+                        });
+
+                        if (!teamResponse.ok) {
+                            const errorData = await teamResponse.json();
+                            throw new Error(errorData.message || 'Erro ao buscar dados do time');
+                        }
+
+                        const teamData = await teamResponse.json();
+                        if (!teamData.response || teamData.response.length === 0) {
+                            throw new Error(`Time não encontrado: ${teamName}. Por favor, verifique o nome do time e tente novamente.`);
+                        }
+
+                        // Fetch odds data for the team's league
+                        const oddsResponse = await fetch(`${API_URL}/odds/league/${teamData.response[0].league.id}`, {
+                            method: 'GET',
+                            headers: {
+                                'x-rapidapi-host': 'api-football-v1.p.rapidapi.com',
+                                'x-rapidapi-key': API_KEY
+                            }
+                        });
+
+                        if (!oddsResponse.ok) {
+                            console.warn('Não foi possível obter as probabilidades');
+                            return {
+                                team: teamData.response[0],
+                                odds: []
+                            };
+                        }
+
+                        const oddsData = await oddsResponse.json();
+                        
+                        return {
+                            team: teamData.response[0],
+                            odds: oddsData.response || []
+                        };
+                    } catch (error) {
+                        console.error('Error fetching data:', error);
+                        throw error;
+                    }
+                }
 
                 async function analyzeTeamsWithAI(homeTeam, awayTeam) {
-                    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${API_KEY}`,
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            model: 'deepseek-chat',
-                            messages: [{
-                                role: 'user',
-                                content: `Analise os times ${homeTeam} e ${awayTeam} e forneça estatísticas e previsões relevantes para uma partida entre eles.`
-                            }]
-                        })
-                    });
-                    
-                    const data = await response.json();
-                    if (!response.ok) {
-                        throw new Error(`Erro na análise: ${data.error?.message || 'Erro desconhecido'}`);
+                    try {
+                        const [homeTeamData, awayTeamData] = await Promise.all([
+                            fetchTeamData(homeTeam),
+                            fetchTeamData(awayTeam)
+                        ]);
+
+                        // Format the team analysis with odds
+                        return `
+                            <div class="team-analysis">
+                                <div class="team-info home-team">
+                                    <h4>${homeTeamData.team.team.name}</h4>
+                                    <img src="${homeTeamData.team.team.logo}" alt="${homeTeamData.team.team.name} logo" class="team-logo">
+                                    <p>País: ${homeTeamData.team.team.country}</p>
+                                    <p>Fundado: ${homeTeamData.team.team.founded}</p>
+                                    <p>Estádio: ${homeTeamData.team.venue?.name || 'N/A'}</p>
+                                    ${homeTeamData.odds.length > 0 ? `
+                                        <div class="odds-info">
+                                            <h5>Probabilidades</h5>
+                                            <p>Vitória: ${homeTeamData.odds[0]?.bookmakers[0]?.bets[0]?.values[0]?.odd || 'N/A'}</p>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                                <div class="vs-marker">VS</div>
+                                <div class="team-info away-team">
+                                    <h4>${awayTeamData.team.team.name}</h4>
+                                    <img src="${awayTeamData.team.team.logo}" alt="${awayTeamData.team.team.name} logo" class="team-logo">
+                                    <p>País: ${awayTeamData.team.team.country}</p>
+                                    <p>Fundado: ${awayTeamData.team.team.founded}</p>
+                                    <p>Estádio: ${awayTeamData.team.venue?.name || 'N/A'}</p>
+                                    ${awayTeamData.odds.length > 0 ? `
+                                        <div class="odds-info">
+                                            <h5>Probabilidades</h5>
+                                            <p>Vitória: ${awayTeamData.odds[0]?.bookmakers[0]?.bets[0]?.values[0]?.odd || 'N/A'}</p>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        `;
+                    } catch (error) {
+                        throw new Error(`Erro na análise: ${error.message}`);
                     }
-                    return data.choices[0].message.content;
                 }
+                
 
                 async function analyzeTeams() {
                     const homeTeamInput = document.getElementById('home-team');
@@ -98,11 +198,35 @@
         <footer>
             <p>© 2025 Todos os direitos reservados.</p>
         </footer>
+
+        <!-- Modal de Aviso -->
+        <div class="modal-overlay" id="disclaimerModal">
+            <div class="modal-content">
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+                <h2 class="modal-title">Aviso Importante</h2>
+                <p class="modal-text">
+                    Bem-vindo ao SPORTS.IA! Este site foi desenvolvido exclusivamente para fornecer informações e análises futebolísticas.
+                    <br><br>
+                    Importante ressaltar que não nos responsabilizamos por decisões de apostas baseadas em nossas análises.
+                    As informações aqui apresentadas são apenas para fins informativos e educacionais.
+                </p>
+            </div>
+        </div>
+
+        <script>
+            // Exibe o modal automaticamente quando a página carrega
+            window.onload = function() {
+                document.getElementById('disclaimerModal').classList.add('active');
+            }
+
+            // Função para fechar o modal
+            function closeModal() {
+                document.getElementById('disclaimerModal').classList.remove('active');
+            }
+        </script>
     </div>
 
     <style>
-
-
         .analysis-result {
             margin: 20px;
             padding: 20px;
@@ -111,10 +235,45 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
-        .analysis-content {
-            white-space: pre-line;
-            line-height: 1.6;
+        .team-analysis {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .team-info {
+            flex: 1;
+            text-align: center;
+            padding: 15px;
+        }
+
+        .team-logo {
+            width: 120px;
+            height: 120px;
+            object-fit: contain;
+            margin: 10px 0;
+        }
+
+        .vs-marker {
+            font-size: 24px;
+            font-weight: bold;
             color: #333;
+            margin: 0 20px;
+        }
+
+        .team-info h4 {
+            font-size: 20px;
+            margin: 10px 0;
+            color: #2c3e50;
+        }
+
+        .team-info p {
+            margin: 5px 0;
+            color: #666;
         }
 
         .loading {
@@ -122,6 +281,35 @@
             padding: 20px;
             font-style: italic;
             color: #666;
+        }
+
+        .error {
+            color: #dc3545;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+        }
+
+        .odds-info {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .odds-info h5 {
+            color: #2c3e50;
+            margin: 0 0 8px 0;
+            font-size: 16px;
+        }
+
+        .odds-info p {
+            color: #666;
+            margin: 5px 0;
+            font-size: 14px;
         }
     </style>
 </body>
